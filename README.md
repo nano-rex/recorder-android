@@ -1,4 +1,4 @@
-# Transcriber Recorder Android
+# Recorder Android
 
 Standalone Android recorder app extracted from `transcriber-android`.
 
@@ -9,7 +9,7 @@ Standalone Android recorder app extracted from `transcriber-android`.
 
 ## Build
 ```bash
-cd /home/user/github/transcriber-recorder-android
+cd /home/user/github/recorder-android
 ./gradlew :app:assembleDebug
 ```
 
