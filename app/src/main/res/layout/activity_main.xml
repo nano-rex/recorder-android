@@ -24,12 +24,27 @@
             android:layout_marginTop="12dp"
             android:text="Status: idle" />
 
+        <CheckBox
+            android:id="@+id/cbAutoTrim"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:checked="true"
+            android:text="Auto trim quiet sections after recording" />
+
         <Button
             android:id="@+id/btnRecord"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="Start recording" />
+
+        <Button
+            android:id="@+id/btnTrimFile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Trim picked WAV file" />
 
         <TextView
             android:id="@+id/tvLatestFile"

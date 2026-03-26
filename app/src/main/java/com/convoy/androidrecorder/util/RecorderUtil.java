@@ -3,11 +3,16 @@ package com.convoy.androidrecorder.util;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.AutomaticGainControl;
+import android.media.audiofx.NoiseSuppressor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class RecorderUtil {
@@ -17,35 +22,93 @@ public final class RecorderUtil {
 
     private RecorderUtil() {}
 
-    public static RecorderSession startRecording(File outWavFile) {
+    public static RecorderSession startRecording(File outWavFile, boolean autoTrim) {
         int minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
         int bufferSize = Math.max(minBuffer, 4096);
-        AudioRecord recorder = new AudioRecord(
-                MediaRecorder.AudioSource.MIC,
-                SAMPLE_RATE,
-                CHANNEL_CONFIG,
-                AUDIO_FORMAT,
-                bufferSize
-        );
 
+        int[] preferredSources = new int[]{
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                MediaRecorder.AudioSource.MIC
+        };
+        String[] sourceLabels = new String[]{
+                "voice recognition",
+                "microphone"
+        };
+
+        AudioRecord recorder = null;
+        String sourceLabel = "microphone";
+        for (int i = 0; i < preferredSources.length; i++) {
+            AudioRecord candidate = new AudioRecord(
+                    preferredSources[i],
+                    SAMPLE_RATE,
+                    CHANNEL_CONFIG,
+                    AUDIO_FORMAT,
+                    bufferSize
+            );
+            if (candidate.getState() == AudioRecord.STATE_INITIALIZED) {
+                recorder = candidate;
+                sourceLabel = sourceLabels[i];
+                break;
+            }
+            candidate.release();
+        }
+
+        if (recorder == null) {
+            throw new IllegalStateException("Unable to initialize audio recorder");
+        }
+
+        List<AutoCloseable> audioEffects = enableSpeechEffects(recorder.getAudioSessionId());
         AtomicBoolean running = new AtomicBoolean(true);
         ByteArrayOutputStream pcmOut = new ByteArrayOutputStream();
         byte[] buffer = new byte[bufferSize];
+        AudioRecord finalRecorder = recorder;
 
         Thread worker = new Thread(() -> {
-            recorder.startRecording();
+            finalRecorder.startRecording();
             while (running.get()) {
-                int read = recorder.read(buffer, 0, buffer.length);
+                int read = finalRecorder.read(buffer, 0, buffer.length);
                 if (read > 0) {
                     pcmOut.write(buffer, 0, read);
                 }
             }
-            recorder.stop();
-            recorder.release();
+            finalRecorder.stop();
+            finalRecorder.release();
+            for (AutoCloseable effect : audioEffects) {
+                try {
+                    effect.close();
+                } catch (Exception ignored) {
+                }
+            }
         }, "wav-recorder");
         worker.start();
 
-        return new RecorderSession(outWavFile, running, worker, pcmOut);
+        return new RecorderSession(outWavFile, running, worker, pcmOut, autoTrim, sourceLabel);
+    }
+
+    private static List<AutoCloseable> enableSpeechEffects(int audioSessionId) {
+        List<AutoCloseable> effects = new ArrayList<>();
+        if (NoiseSuppressor.isAvailable()) {
+            NoiseSuppressor ns = NoiseSuppressor.create(audioSessionId);
+            if (ns != null) {
+                ns.setEnabled(true);
+                effects.add(ns::release);
+            }
+        }
+        if (AutomaticGainControl.isAvailable()) {
+            AutomaticGainControl agc = AutomaticGainControl.create(audioSessionId);
+            if (agc != null) {
+                agc.setEnabled(true);
+                effects.add(agc::release);
+            }
+        }
+        if (AcousticEchoCanceler.isAvailable()) {
+            AcousticEchoCanceler aec = AcousticEchoCanceler.create(audioSessionId);
+            if (aec != null) {
+                aec.setEnabled(true);
+                effects.add(aec::release);
+            }
+        }
+        return effects;
     }
 
     public static final class RecorderSession {
@@ -53,23 +116,44 @@ public final class RecorderUtil {
         private final AtomicBoolean running;
         private final Thread worker;
         private final ByteArrayOutputStream pcmOut;
+        private final boolean autoTrim;
+        private final String sourceLabel;
 
-        private RecorderSession(File outWavFile, AtomicBoolean running, Thread worker, ByteArrayOutputStream pcmOut) {
+        private RecorderSession(File outWavFile, AtomicBoolean running, Thread worker, ByteArrayOutputStream pcmOut,
+                                boolean autoTrim, String sourceLabel) {
             this.outWavFile = outWavFile;
             this.running = running;
             this.worker = worker;
             this.pcmOut = pcmOut;
+            this.autoTrim = autoTrim;
+            this.sourceLabel = sourceLabel;
         }
 
-        public File stopAndSave() throws Exception {
+        public SavedRecording stopAndSave() throws Exception {
             running.set(false);
             worker.join();
 
             byte[] pcmBytes = pcmOut.toByteArray();
             short[] pcm16 = bytesToShorts(pcmBytes);
             short[] enhanced = enhancePcm16(pcm16);
-            WaveUtil.createWaveFile(outWavFile.getAbsolutePath(), shortsToBytes(enhanced), SAMPLE_RATE, 1, 2);
-            return outWavFile;
+            byte[] enhancedBytes = shortsToBytes(enhanced);
+            WaveUtil.createWaveFile(outWavFile.getAbsolutePath(), enhancedBytes, SAMPLE_RATE, 1, 2);
+
+            File trimmedFile = null;
+            if (autoTrim) {
+                File candidate = new File(outWavFile.getParentFile(), baseName(outWavFile.getName()) + "_trimmed.wav");
+                trimmedFile = AudioTrimUtil.trimQuietSections(outWavFile, candidate);
+            }
+            return new SavedRecording(outWavFile, trimmedFile, sourceLabel);
+        }
+
+        public String getSourceLabel() {
+            return sourceLabel;
+        }
+
+        private String baseName(String name) {
+            int dot = name.lastIndexOf('.');
+            return dot >= 0 ? name.substring(0, dot) : name;
         }
 
         private short[] bytesToShorts(byte[] bytes) {
@@ -146,6 +230,30 @@ public final class RecorderUtil {
                 }
             }
             return out;
+        }
+    }
+
+    public static final class SavedRecording {
+        private final File recordedFile;
+        private final File trimmedFile;
+        private final String sourceLabel;
+
+        public SavedRecording(File recordedFile, File trimmedFile, String sourceLabel) {
+            this.recordedFile = recordedFile;
+            this.trimmedFile = trimmedFile;
+            this.sourceLabel = sourceLabel;
+        }
+
+        public File getRecordedFile() {
+            return recordedFile;
+        }
+
+        public File getTrimmedFile() {
+            return trimmedFile;
+        }
+
+        public String getSourceLabel() {
+            return sourceLabel;
         }
     }
 }
