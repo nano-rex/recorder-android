@@ -1,7 +1,6 @@
 package com.convoy.androidrecorder;
 
 import android.Manifest;
-import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -139,13 +138,13 @@ public class MainActivity extends AppCompatActivity {
                 AudioTrimUtil.trimQuietSections(imported, trimmed);
                 runOnUiThread(() -> {
                     setStatusNormal();
-                    tvStatus.setText("Status: quiet sections trimmed successfully");
+                    tvStatus.setText("Status: VAD trim completed successfully");
                     tvLatestFile.setText("Latest file: " + trimmed.getAbsolutePath());
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
                     setStatusWarning();
-                    tvStatus.setText("Status: trim failed - " + e.getMessage());
+                    tvStatus.setText("Status: VAD trim failed - " + e.getMessage());
                 });
             }
         }).start();

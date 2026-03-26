@@ -1,18 +1,23 @@
 package com.convoy.androidrecorder.util;
 
+import com.konovalov.vad.webrtc.Vad;
+import com.konovalov.vad.webrtc.VadWebRTC;
+import com.konovalov.vad.webrtc.config.FrameSize;
+import com.konovalov.vad.webrtc.config.Mode;
+import com.konovalov.vad.webrtc.config.SampleRate;
+
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class AudioTrimUtil {
-    private static final int FRAME_MS = 20;
-    private static final int KEEP_PADDING_MS = 150;
-    private static final float SILENCE_THRESHOLD = 0.012f;
-    private static final int MIN_KEEP_MS = 120;
+    private static final int SAMPLE_RATE = 16000;
+    private static final int CHANNELS = 1;
+    private static final int FRAME_SAMPLES = 320;
+    private static final int FRAME_BYTES = FRAME_SAMPLES * 2;
+    private static final int KEEP_PADDING_MS = 200;
 
     private AudioTrimUtil() {}
 
@@ -23,32 +28,38 @@ public final class AudioTrimUtil {
         return outputWav;
     }
 
-    public static byte[] trimQuietSections(byte[] pcmBytes, int sampleRate, int channels) {
+    public static byte[] trimQuietSections(byte[] pcmBytes, int sampleRate, int channels) throws IOException {
         return trimQuietSections(new WavData(sampleRate, channels, pcmBytes));
     }
 
-    private static byte[] trimQuietSections(WavData wavData) {
-        int frameSamples = Math.max(1, wavData.sampleRate * FRAME_MS / 1000);
-        int frameBytes = frameSamples * wavData.channels * 2;
-        int paddingFrames = Math.max(1, KEEP_PADDING_MS / FRAME_MS);
-        int minKeepFrames = Math.max(1, MIN_KEEP_MS / FRAME_MS);
-        int totalFrames = Math.max(1, (int) Math.ceil(wavData.pcmBytes.length / (double) frameBytes));
+    private static byte[] trimQuietSections(WavData wavData) throws IOException {
+        validateVadFormat(wavData.sampleRate, wavData.channels);
+        int totalFrames = Math.max(1, (int) Math.ceil(wavData.pcmBytes.length / (double) FRAME_BYTES));
         boolean[] keep = new boolean[totalFrames];
+        int paddingFrames = Math.max(1, KEEP_PADDING_MS / frameDurationMs());
+        boolean foundSpeech = false;
 
-        for (int frame = 0; frame < totalFrames; frame++) {
-            int start = frame * frameBytes;
-            int end = Math.min(wavData.pcmBytes.length, start + frameBytes);
-            float level = averageAbsLevel(wavData.pcmBytes, start, end, wavData.channels);
-            if (level >= SILENCE_THRESHOLD) {
-                int from = Math.max(0, frame - paddingFrames);
-                int to = Math.min(totalFrames - 1, frame + paddingFrames);
-                for (int i = from; i <= to; i++) keep[i] = true;
+        try (VadWebRTC vad = Vad.builder()
+                .setSampleRate(SampleRate.SAMPLE_RATE_16K)
+                .setFrameSize(FrameSize.FRAME_SIZE_320)
+                .setMode(Mode.VERY_AGGRESSIVE)
+                .setSilenceDurationMs(300)
+                .setSpeechDurationMs(50)
+                .build()) {
+            for (int frame = 0; frame < totalFrames; frame++) {
+                byte[] frameBytes = copyFrame(wavData.pcmBytes, frame);
+                if (vad.isSpeech(frameBytes)) {
+                    foundSpeech = true;
+                    int from = Math.max(0, frame - paddingFrames);
+                    int to = Math.min(totalFrames - 1, frame + paddingFrames);
+                    for (int i = from; i <= to; i++) keep[i] = true;
+                }
             }
+        } catch (Exception e) {
+            throw new IOException("VAD trim failed", e);
         }
 
-        int keptFrames = 0;
-        for (boolean keepFrame : keep) if (keepFrame) keptFrames++;
-        if (keptFrames == 0 || keptFrames < minKeepFrames) {
+        if (!foundSpeech) {
             return wavData.pcmBytes;
         }
 
@@ -56,13 +67,17 @@ public final class AudioTrimUtil {
         int totalBytes = 0;
         for (int frame = 0; frame < totalFrames; frame++) {
             if (!keep[frame]) continue;
-            int start = frame * frameBytes;
-            int end = Math.min(wavData.pcmBytes.length, start + frameBytes);
+            int start = frame * FRAME_BYTES;
+            int end = Math.min(wavData.pcmBytes.length, start + FRAME_BYTES);
             int len = end - start;
             byte[] chunk = new byte[len];
             System.arraycopy(wavData.pcmBytes, start, chunk, 0, len);
             chunks.add(chunk);
             totalBytes += len;
+        }
+
+        if (totalBytes == 0) {
+            return wavData.pcmBytes;
         }
 
         byte[] trimmed = new byte[totalBytes];
@@ -71,18 +86,27 @@ public final class AudioTrimUtil {
             System.arraycopy(chunk, 0, trimmed, offset, chunk.length);
             offset += chunk.length;
         }
-        return trimmed.length == 0 ? wavData.pcmBytes : trimmed;
+        return trimmed;
     }
 
-    private static float averageAbsLevel(byte[] pcmBytes, int start, int end, int channels) {
-        ByteBuffer bb = ByteBuffer.wrap(pcmBytes, start, end - start).order(ByteOrder.LITTLE_ENDIAN);
-        int samples = Math.max(1, (end - start) / 2);
-        double sum = 0.0;
-        while (bb.remaining() >= 2) {
-            short value = bb.getShort();
-            sum += Math.abs(value / 32768.0);
+    private static byte[] copyFrame(byte[] pcmBytes, int frameIndex) {
+        int start = frameIndex * FRAME_BYTES;
+        int available = Math.max(0, pcmBytes.length - start);
+        byte[] frame = new byte[FRAME_BYTES];
+        if (available > 0) {
+            System.arraycopy(pcmBytes, start, frame, 0, Math.min(FRAME_BYTES, available));
         }
-        return (float) (sum / samples * Math.max(1, channels));
+        return frame;
+    }
+
+    private static int frameDurationMs() {
+        return FRAME_SAMPLES * 1000 / SAMPLE_RATE;
+    }
+
+    private static void validateVadFormat(int sampleRate, int channels) throws IOException {
+        if (sampleRate != SAMPLE_RATE || channels != CHANNELS) {
+            throw new IOException("VAD trim only supports 16 kHz mono PCM WAV files");
+        }
     }
 
     private static WavData readPcm16Wave(File inputWav) throws IOException {
