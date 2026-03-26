@@ -14,14 +14,12 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.convoy.androidrecorder.util.AudioImportUtil;
 import com.convoy.androidrecorder.util.AudioTrimUtil;
 import com.convoy.androidrecorder.util.RecorderUtil;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
     private TextView tvStatus;
@@ -133,9 +131,13 @@ public class MainActivity extends AppCompatActivity {
         tvStatus.setText("Status: preparing selected audio file...");
         new Thread(() -> {
             try {
-                File imported = copyUriToLocalWav(uri);
-                File trimmed = new File(recordingsDir(), baseName(imported.getName()) + "_trimmed.wav");
-                AudioTrimUtil.trimQuietSections(imported, trimmed);
+                AudioImportUtil.ImportedAudio imported = AudioImportUtil.importToWav(this, uri, recordingsDir(),
+                        (percent, stage) -> runOnUiThread(() -> {
+                            setStatusNormal();
+                            tvStatus.setText("Status: " + stage + " (" + percent + "%)");
+                        }));
+                File trimmed = new File(recordingsDir(), baseName(imported.getWavFile().getName()) + "_trimmed.wav");
+                AudioTrimUtil.trimQuietSections(imported.getWavFile(), trimmed);
                 runOnUiThread(() -> {
                     setStatusNormal();
                     tvStatus.setText("Status: VAD trim completed successfully");
@@ -148,20 +150,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }).start();
-    }
-
-    private File copyUriToLocalWav(Uri uri) throws IOException {
-        File imported = new File(recordingsDir(), "imported_" + System.currentTimeMillis() + ".wav");
-        try (InputStream in = getContentResolver().openInputStream(uri);
-             OutputStream out = new FileOutputStream(imported)) {
-            if (in == null) throw new IOException("Unable to read selected file");
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        }
-        return imported;
     }
 
     private String baseName(String name) {
