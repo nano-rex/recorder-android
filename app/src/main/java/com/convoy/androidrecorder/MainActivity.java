@@ -2,11 +2,9 @@ package com.convoy.androidrecorder;
 
 import android.Manifest;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.TextView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -14,20 +12,15 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.convoy.androidrecorder.util.AudioImportUtil;
-import com.convoy.androidrecorder.util.AudioTrimUtil;
 import com.convoy.androidrecorder.util.RecorderUtil;
 
 import java.io.File;
-import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
     private TextView tvStatus;
     private TextView tvLatestFile;
     private TextView tvOutputDir;
     private Button btnRecord;
-    private Button btnTrimFile;
-    private CheckBox cbAutoTrim;
     private RecorderUtil.RecorderSession recorderSession;
     private boolean isRecording = false;
     private int defaultStatusColor;
@@ -42,9 +35,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-    private final ActivityResultLauncher<String[]> pickAudioFileLauncher =
-            registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::handlePickedAudioFile);
-
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,8 +44,6 @@ public class MainActivity extends AppCompatActivity {
         tvLatestFile = findViewById(R.id.tvLatestFile);
         tvOutputDir = findViewById(R.id.tvOutputDir);
         btnRecord = findViewById(R.id.btnRecord);
-        btnTrimFile = findViewById(R.id.btnTrimFile);
-        cbAutoTrim = findViewById(R.id.cbAutoTrim);
         defaultStatusColor = tvStatus.getCurrentTextColor();
 
         File outputDir = recordingsDir();
@@ -69,7 +57,6 @@ public class MainActivity extends AppCompatActivity {
                 requestRecordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
             }
         });
-        btnTrimFile.setOnClickListener(v -> pickAudioFileLauncher.launch(new String[]{"audio/wav", "audio/x-wav", "audio/*"}));
     }
 
     private File recordingsDir() {
@@ -83,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private void startRecording() {
         try {
             File out = new File(recordingsDir(), "recording_" + System.currentTimeMillis() + ".wav");
-            recorderSession = RecorderUtil.startRecording(out, cbAutoTrim.isChecked());
+            recorderSession = RecorderUtil.startRecording(out);
             isRecording = true;
             setStatusNormal();
             btnRecord.setText("Stop recording");
@@ -105,12 +92,7 @@ public class MainActivity extends AppCompatActivity {
                     recorderSession = null;
                     btnRecord.setText("Start recording");
                     setStatusNormal();
-                    StringBuilder status = new StringBuilder("Status: recording saved via ")
-                            .append(recorded.getSourceLabel());
-                    if (recorded.getTrimmedFile() != null) {
-                        status.append(" + trimmed quiet sections");
-                    }
-                    tvStatus.setText(status.toString());
+                    tvStatus.setText("Status: recording saved via " + recorded.getSourceLabel());
                     tvLatestFile.setText("Latest file: " + recorded.getRecordedFile().getAbsolutePath());
                 });
             } catch (Exception e) {
@@ -123,38 +105,6 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }).start();
-    }
-
-    private void handlePickedAudioFile(Uri uri) {
-        if (uri == null) return;
-        setStatusNormal();
-        tvStatus.setText("Status: preparing selected audio file...");
-        new Thread(() -> {
-            try {
-                AudioImportUtil.ImportedAudio imported = AudioImportUtil.importToWav(this, uri, recordingsDir(),
-                        (percent, stage) -> runOnUiThread(() -> {
-                            setStatusNormal();
-                            tvStatus.setText("Status: " + stage + " (" + percent + "%)");
-                        }));
-                File trimmed = new File(recordingsDir(), baseName(imported.getWavFile().getName()) + "_trimmed.wav");
-                AudioTrimUtil.trimQuietSections(imported.getWavFile(), trimmed);
-                runOnUiThread(() -> {
-                    setStatusNormal();
-                    tvStatus.setText("Status: VAD trim completed successfully");
-                    tvLatestFile.setText("Latest file: " + trimmed.getAbsolutePath());
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    setStatusWarning();
-                    tvStatus.setText("Status: VAD trim failed - " + e.getMessage());
-                });
-            }
-        }).start();
-    }
-
-    private String baseName(String name) {
-        int dot = name.lastIndexOf('.');
-        return dot >= 0 ? name.substring(0, dot) : name;
     }
 
     private void refreshLatestFile() {

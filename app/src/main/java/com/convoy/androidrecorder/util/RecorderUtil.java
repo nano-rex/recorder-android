@@ -22,7 +22,7 @@ public final class RecorderUtil {
 
     private RecorderUtil() {}
 
-    public static RecorderSession startRecording(File outWavFile, boolean autoTrim) {
+    public static RecorderSession startRecording(File outWavFile) {
         int minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
         int bufferSize = Math.max(minBuffer, 4096);
 
@@ -82,7 +82,7 @@ public final class RecorderUtil {
         }, "wav-recorder");
         worker.start();
 
-        return new RecorderSession(outWavFile, running, worker, pcmOut, autoTrim, sourceLabel);
+        return new RecorderSession(outWavFile, running, worker, pcmOut, sourceLabel);
     }
 
     private static List<AutoCloseable> enableSpeechEffects(int audioSessionId) {
@@ -116,16 +116,14 @@ public final class RecorderUtil {
         private final AtomicBoolean running;
         private final Thread worker;
         private final ByteArrayOutputStream pcmOut;
-        private final boolean autoTrim;
         private final String sourceLabel;
 
         private RecorderSession(File outWavFile, AtomicBoolean running, Thread worker, ByteArrayOutputStream pcmOut,
-                                boolean autoTrim, String sourceLabel) {
+                                String sourceLabel) {
             this.outWavFile = outWavFile;
             this.running = running;
             this.worker = worker;
             this.pcmOut = pcmOut;
-            this.autoTrim = autoTrim;
             this.sourceLabel = sourceLabel;
         }
 
@@ -139,21 +137,11 @@ public final class RecorderUtil {
             byte[] enhancedBytes = shortsToBytes(enhanced);
             WaveUtil.createWaveFile(outWavFile.getAbsolutePath(), enhancedBytes, SAMPLE_RATE, 1, 2);
 
-            File trimmedFile = null;
-            if (autoTrim) {
-                File candidate = new File(outWavFile.getParentFile(), baseName(outWavFile.getName()) + "_trimmed.wav");
-                trimmedFile = AudioTrimUtil.trimQuietSections(outWavFile, candidate);
-            }
-            return new SavedRecording(outWavFile, trimmedFile, sourceLabel);
+            return new SavedRecording(outWavFile, sourceLabel);
         }
 
         public String getSourceLabel() {
             return sourceLabel;
-        }
-
-        private String baseName(String name) {
-            int dot = name.lastIndexOf('.');
-            return dot >= 0 ? name.substring(0, dot) : name;
         }
 
         private short[] bytesToShorts(byte[] bytes) {
@@ -235,21 +223,15 @@ public final class RecorderUtil {
 
     public static final class SavedRecording {
         private final File recordedFile;
-        private final File trimmedFile;
         private final String sourceLabel;
 
-        public SavedRecording(File recordedFile, File trimmedFile, String sourceLabel) {
+        public SavedRecording(File recordedFile, String sourceLabel) {
             this.recordedFile = recordedFile;
-            this.trimmedFile = trimmedFile;
             this.sourceLabel = sourceLabel;
         }
 
         public File getRecordedFile() {
             return recordedFile;
-        }
-
-        public File getTrimmedFile() {
-            return trimmedFile;
         }
 
         public String getSourceLabel() {
