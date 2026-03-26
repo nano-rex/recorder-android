@@ -9,6 +9,7 @@ Standalone Android recorder app extracted from `transcriber-android`.
 - save enhanced 16 kHz mono WAV files locally
 - optionally auto-trim quiet sections after recording using offline WebRTC VAD
 - trim a picked local audio file by first converting it to 16 kHz mono WAV, then applying offline WebRTC VAD
+- bundle FFmpeg as a fallback converter for formats not reliably handled by device codecs
 
 ## Build
 ```bash

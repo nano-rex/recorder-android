@@ -1,5 +1,9 @@
 package com.convoy.androidrecorder.util;
 
+import com.arthenica.ffmpegkit.FFmpegKit;
+import com.arthenica.ffmpegkit.FFmpegSession;
+import com.arthenica.ffmpegkit.ReturnCode;
+
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
@@ -49,7 +53,14 @@ public final class AudioImportUtil {
             return new ImportedAudio(displayName, outFile);
         }
 
-        decodeMediaTo16kMonoWav(context, uri, outFile, listener);
+        File sourceCopy = new File(outputDir, baseName + originalExtension(displayName));
+        copyUriToFile(context, uri, sourceCopy, listener);
+        try {
+            decodeMediaTo16kMonoWav(context, uri, outFile, listener);
+        } catch (IOException decodeError) {
+            notifyProgress(listener, 72, "ffmpeg fallback");
+            ffmpegConvertTo16kMonoWav(sourceCopy, outFile);
+        }
         notifyProgress(listener, 100, "import complete");
         return new ImportedAudio(displayName, outFile);
     }
@@ -174,6 +185,26 @@ public final class AudioImportUtil {
         } finally {
             extractor.release();
         }
+    }
+
+    private static void ffmpegConvertTo16kMonoWav(File source, File outFile) throws IOException {
+        String command = "-y -i " + ffmpegQuote(source) + " -vn -ac 1 -ar 16000 -c:a pcm_s16le " + ffmpegQuote(outFile);
+        FFmpegSession session = FFmpegKit.execute(command);
+        if (!ReturnCode.isSuccess(session.getReturnCode())) {
+            String detail = session.getFailStackTrace();
+            if (detail == null || detail.isBlank()) detail = session.getOutput();
+            throw new IOException("FFmpeg fallback failed" + (detail == null || detail.isBlank() ? "" : ": " + detail));
+        }
+    }
+
+    private static String ffmpegQuote(File file) {
+        String path = file.getAbsolutePath().replace("'", "'\''");
+        return "'" + path + "'";
+    }
+
+    private static String originalExtension(String displayName) {
+        int dot = displayName.lastIndexOf('.');
+        return dot >= 0 ? displayName.substring(dot) : ".bin";
     }
 
     private static int selectAudioTrack(MediaExtractor extractor) {
