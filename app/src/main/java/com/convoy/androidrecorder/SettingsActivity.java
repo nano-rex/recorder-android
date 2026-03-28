@@ -1,5 +1,6 @@
 package com.convoy.androidrecorder;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -22,6 +23,9 @@ public class SettingsActivity extends AppCompatActivity {
         TextView tvRecordingSource = findViewById(R.id.tvRecordingSource);
         Button btnFolderSetup = findViewById(R.id.btnFolderSetup);
         Button btnRecordingSource = findViewById(R.id.btnRecordingSource);
+        Button btnTabHome = findViewById(R.id.btnTabHome);
+        Button btnTabFolder = findViewById(R.id.btnTabFolder);
+        Button btnTabSettings = findViewById(R.id.btnTabSettings);
 
         switchDarkMode.setChecked(AppSettings.isDarkModeEnabled(this));
         refreshFolderPath(tvFolderPath);
@@ -34,6 +38,14 @@ public class SettingsActivity extends AppCompatActivity {
         });
         btnFolderSetup.setOnClickListener(v -> showFolderModeDialog(tvFolderPath));
         btnRecordingSource.setOnClickListener(v -> showRecordingSourceDialog(tvRecordingSource));
+        btnTabHome.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            finish();
+        });
+        btnTabFolder.setOnClickListener(v -> startActivity(new Intent(this, RecordingsActivity.class)));
+        btnTabSettings.setEnabled(false);
     }
 
     private void showFolderModeDialog(TextView tvFolderPath) {
