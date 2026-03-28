@@ -37,5 +37,19 @@
             android:layout_marginTop="12dp"
             android:text="Folder Setup" />
 
+        <TextView
+            android:id="@+id/tvRecordingSource"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Current recording source:" />
+
+        <Button
+            android:id="@+id/btnRecordingSource"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Recording Source" />
+
     </LinearLayout>
 </ScrollView>

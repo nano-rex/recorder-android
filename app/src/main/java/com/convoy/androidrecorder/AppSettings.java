@@ -9,10 +9,13 @@ public final class AppSettings {
     private static final String PREFS = "recorder_settings";
     private static final String KEY_STORAGE_MODE = "storage_mode";
     private static final String KEY_DARK_MODE = "dark_mode";
+    private static final String KEY_RECORDING_SOURCE = "recording_source";
 
     public static final String STORAGE_DOCUMENTS = "documents";
     public static final String STORAGE_DOWNLOADS = "downloads";
     public static final String STORAGE_INTERNAL = "internal";
+    public static final String SOURCE_VOICE = "voice";
+    public static final String SOURCE_MICROPHONE = "microphone";
 
     private AppSettings() {}
 
@@ -34,6 +37,14 @@ public final class AppSettings {
 
     public static void setDarkModeEnabled(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_DARK_MODE, enabled).apply();
+    }
+
+    public static String getRecordingSource(Context context) {
+        return prefs(context).getString(KEY_RECORDING_SOURCE, SOURCE_VOICE);
+    }
+
+    public static void setRecordingSource(Context context, String source) {
+        prefs(context).edit().putString(KEY_RECORDING_SOURCE, source).apply();
     }
 
     public static void applyNightMode(Context context) {

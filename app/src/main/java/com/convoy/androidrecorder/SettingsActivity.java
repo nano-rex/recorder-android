@@ -19,10 +19,13 @@ public class SettingsActivity extends AppCompatActivity {
 
         Switch switchDarkMode = findViewById(R.id.switchDarkMode);
         TextView tvFolderPath = findViewById(R.id.tvFolderPath);
+        TextView tvRecordingSource = findViewById(R.id.tvRecordingSource);
         Button btnFolderSetup = findViewById(R.id.btnFolderSetup);
+        Button btnRecordingSource = findViewById(R.id.btnRecordingSource);
 
         switchDarkMode.setChecked(AppSettings.isDarkModeEnabled(this));
         refreshFolderPath(tvFolderPath);
+        refreshRecordingSource(tvRecordingSource);
 
         switchDarkMode.setOnCheckedChangeListener((CompoundButton buttonView, boolean isChecked) -> {
             AppSettings.setDarkModeEnabled(this, isChecked);
@@ -30,6 +33,7 @@ public class SettingsActivity extends AppCompatActivity {
             recreate();
         });
         btnFolderSetup.setOnClickListener(v -> showFolderModeDialog(tvFolderPath));
+        btnRecordingSource.setOnClickListener(v -> showRecordingSourceDialog(tvRecordingSource));
     }
 
     private void showFolderModeDialog(TextView tvFolderPath) {
@@ -54,5 +58,29 @@ public class SettingsActivity extends AppCompatActivity {
 
     private void refreshFolderPath(TextView tvFolderPath) {
         tvFolderPath.setText("Current base folder:\n" + StorageUtils.describeBaseDir(this));
+    }
+
+    private void showRecordingSourceDialog(TextView tvRecordingSource) {
+        String[] labels = new String[]{
+                "Voice recognition",
+                "Microphone"
+        };
+        String[] values = new String[]{
+                AppSettings.SOURCE_VOICE,
+                AppSettings.SOURCE_MICROPHONE
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Choose recording source")
+                .setItems(labels, (dialog, which) -> {
+                    AppSettings.setRecordingSource(this, values[which]);
+                    refreshRecordingSource(tvRecordingSource);
+                })
+                .show();
+    }
+
+    private void refreshRecordingSource(TextView tvRecordingSource) {
+        String source = AppSettings.getRecordingSource(this);
+        String label = AppSettings.SOURCE_MICROPHONE.equals(source) ? "Microphone" : "Voice recognition";
+        tvRecordingSource.setText("Current recording source:\n" + label);
     }
 }

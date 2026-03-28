@@ -22,18 +22,31 @@ public final class RecorderUtil {
 
     private RecorderUtil() {}
 
-    public static RecorderSession startRecording(File outWavFile) {
+    public static RecorderSession startRecording(File outWavFile, String preferredSource) {
         int minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
         int bufferSize = Math.max(minBuffer, 4096);
 
-        int[] preferredSources = new int[]{
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
-                MediaRecorder.AudioSource.MIC
-        };
-        String[] sourceLabels = new String[]{
-                "voice recognition",
-                "microphone"
-        };
+        int[] preferredSources;
+        String[] sourceLabels;
+        if ("microphone".equals(preferredSource)) {
+            preferredSources = new int[]{
+                    MediaRecorder.AudioSource.MIC,
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION
+            };
+            sourceLabels = new String[]{
+                    "microphone",
+                    "voice recognition"
+            };
+        } else {
+            preferredSources = new int[]{
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                    MediaRecorder.AudioSource.MIC
+            };
+            sourceLabels = new String[]{
+                    "voice recognition",
+                    "microphone"
+            };
+        }
 
         AudioRecord recorder = null;
         String sourceLabel = "microphone";

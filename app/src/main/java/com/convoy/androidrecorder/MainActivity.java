@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
     private void startRecording() {
         try {
             File out = new File(recordingsDir(), "recording_" + System.currentTimeMillis() + ".wav");
-            recorderSession = RecorderUtil.startRecording(out);
+            recorderSession = RecorderUtil.startRecording(out, AppSettings.getRecordingSource(this));
             isRecording = true;
             btnRecord.setText("Stop recording");
             setStatusMessage("Status: recording with " + recorderSession.getSourceLabel() + "...", false);
