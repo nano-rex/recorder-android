@@ -1,9 +1,10 @@
 package com.convoy.androidrecorder;
 
 import android.Manifest;
+import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.os.Environment;
 import android.widget.Button;
 import android.widget.TextView;
 
@@ -17,54 +18,55 @@ import com.convoy.androidrecorder.util.RecorderUtil;
 import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
-    private TextView tvStatus;
+    private TextView tvHardwarePanel;
     private TextView tvLatestFile;
-    private TextView tvOutputDir;
     private Button btnRecord;
     private RecorderUtil.RecorderSession recorderSession;
     private boolean isRecording = false;
     private int defaultStatusColor;
+    private String statusMessage = "Status: idle";
+    private boolean statusWarning = false;
 
     private final ActivityResultLauncher<String> requestRecordPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                 if (granted) {
                     startRecording();
                 } else {
-                    setStatusWarning();
-                    tvStatus.setText("Status: microphone permission denied");
+                    setStatusMessage("Status: microphone permission denied", true);
                 }
             });
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        AppSettings.applyNightMode(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        tvStatus = findViewById(R.id.tvStatus);
+        tvHardwarePanel = findViewById(R.id.tvHardwarePanel);
         tvLatestFile = findViewById(R.id.tvLatestFile);
-        tvOutputDir = findViewById(R.id.tvOutputDir);
         btnRecord = findViewById(R.id.btnRecord);
-        defaultStatusColor = tvStatus.getCurrentTextColor();
+        Button btnSettings = findViewById(R.id.btnSettings);
+        defaultStatusColor = tvHardwarePanel.getCurrentTextColor();
 
-        File outputDir = recordingsDir();
-        tvOutputDir.setText("Output folder: " + outputDir.getAbsolutePath());
         refreshLatestFile();
+        refreshPanel();
 
         btnRecord.setOnClickListener(v -> {
+            if (!StorageUtils.isWorkspaceConfigured(this)) {
+                setStatusMessage("Status: set the workspace folder in Settings first", true);
+                return;
+            }
             if (isRecording) {
                 stopRecording();
             } else {
                 requestRecordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
             }
         });
+        btnSettings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
     }
 
     private File recordingsDir() {
-        File root = getExternalFilesDir(Environment.DIRECTORY_MUSIC);
-        if (root == null) root = new File(getFilesDir(), "music");
-        File dir = new File(root, "TranscriberRecorder");
-        if (!dir.exists()) dir.mkdirs();
-        return dir;
+        return StorageUtils.recordingsDir(this);
     }
 
     private void startRecording() {
@@ -72,13 +74,11 @@ public class MainActivity extends AppCompatActivity {
             File out = new File(recordingsDir(), "recording_" + System.currentTimeMillis() + ".wav");
             recorderSession = RecorderUtil.startRecording(out);
             isRecording = true;
-            setStatusNormal();
             btnRecord.setText("Stop recording");
-            tvStatus.setText("Status: recording with " + recorderSession.getSourceLabel() + "...");
+            setStatusMessage("Status: recording with " + recorderSession.getSourceLabel() + "...", false);
             tvLatestFile.setText("Latest file: recording in progress");
         } catch (Exception e) {
-            setStatusWarning();
-            tvStatus.setText("Status: failed to start recording - " + e.getMessage());
+            setStatusMessage("Status: failed to start recording - " + e.getMessage(), true);
         }
     }
 
@@ -91,8 +91,7 @@ public class MainActivity extends AppCompatActivity {
                     isRecording = false;
                     recorderSession = null;
                     btnRecord.setText("Start recording");
-                    setStatusNormal();
-                    tvStatus.setText("Status: recording saved via " + recorded.getSourceLabel());
+                    setStatusMessage("Status: recording saved via " + recorded.getSourceLabel(), false);
                     tvLatestFile.setText("Latest file: " + recorded.getRecordedFile().getAbsolutePath());
                 });
             } catch (Exception e) {
@@ -100,14 +99,17 @@ public class MainActivity extends AppCompatActivity {
                     isRecording = false;
                     recorderSession = null;
                     btnRecord.setText("Start recording");
-                    setStatusWarning();
-                    tvStatus.setText("Status: failed to stop recording - " + e.getMessage());
+                    setStatusMessage("Status: failed to stop recording - " + e.getMessage(), true);
                 });
             }
         }).start();
     }
 
     private void refreshLatestFile() {
+        if (!StorageUtils.isWorkspaceConfigured(this)) {
+            tvLatestFile.setText("Latest file: set workspace folder in Settings");
+            return;
+        }
         File[] files = recordingsDir().listFiles((dir, name) -> name.toLowerCase().endsWith(".wav"));
         if (files == null || files.length == 0) {
             tvLatestFile.setText("Latest file: none");
@@ -120,12 +122,22 @@ public class MainActivity extends AppCompatActivity {
         tvLatestFile.setText("Latest file: " + latest.getAbsolutePath());
     }
 
-    private void setStatusWarning() {
-        tvStatus.setTextColor(Color.RED);
+    private void setStatusMessage(String message, boolean warning) {
+        statusMessage = message;
+        statusWarning = warning;
+        refreshPanel();
     }
 
-    private void setStatusNormal() {
-        tvStatus.setTextColor(defaultStatusColor);
+    private void refreshPanel() {
+        String folder = StorageUtils.describeBaseDir(this);
+        String content = "Recorder\nWorkspace: " + folder + "\n" + statusMessage;
+        tvHardwarePanel.setText(content);
+        GradientDrawable box = new GradientDrawable();
+        box.setCornerRadius(18f);
+        box.setStroke(2, statusWarning ? Color.RED : Color.DKGRAY);
+        box.setColor(statusWarning ? Color.parseColor("#FFF0F0") : Color.parseColor("#F2F2F2"));
+        tvHardwarePanel.setBackground(box);
+        tvHardwarePanel.setTextColor(statusWarning ? Color.RED : defaultStatusColor);
     }
 
     @Override

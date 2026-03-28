@@ -10,42 +10,32 @@
         android:padding="16dp">
 
         <TextView
-            android:id="@+id/tvTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Recorder Android"
+            android:text="Settings"
             android:textSize="24sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/tvHardwarePanel"
+        <Switch
+            android:id="@+id/switchDarkMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="#F2F2F2"
-            android:padding="12dp"
-            android:text="Recorder panel" />
-
-        <Button
-            android:id="@+id/btnRecord"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Start recording" />
+            android:layout_marginTop="16dp"
+            android:text="Enable dark mode" />
 
         <TextView
-            android:id="@+id/tvLatestFile"
+            android:id="@+id/tvFolderPath"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Latest file: none" />
+            android:layout_marginTop="20dp"
+            android:text="Current base folder:" />
 
         <Button
-            android:id="@+id/btnSettings"
+            android:id="@+id/btnFolderSetup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Settings" />
+            android:text="Folder Setup" />
 
     </LinearLayout>
 </ScrollView>
