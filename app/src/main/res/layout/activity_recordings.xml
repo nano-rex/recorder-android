@@ -33,18 +33,60 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <Button
-                android:id="@+id/btnRecord"
+            <TextView
+                android:id="@+id/tvFolderStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Start recording" />
+                android:text="Folder page" />
 
-            <TextView
-                android:id="@+id/tvLatestFile"
+            <Button
+                android:id="@+id/btnFolderSetupPage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="Latest file: none" />
+                android:text="Set Workspace Folder"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvNowPlaying"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Now playing: none" />
+
+            <SeekBar
+                android:id="@+id/seekPlayback"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnPlayPause"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Play" />
+
+                <Button
+                    android:id="@+id/btnRefreshFolder"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:text="Refresh" />
+            </LinearLayout>
+
+            <ListView
+                android:id="@+id/listRecordings"
+                android:layout_width="match_parent"
+                android:layout_height="420dp"
+                android:layout_marginTop="12dp" />
 
             <Button
                 android:id="@+id/btnSettings"
